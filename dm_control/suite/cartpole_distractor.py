@@ -42,9 +42,10 @@ def get_model_and_assets(num_poles=1):
 
 
 @SUITE.add('benchmarking')
-def balance(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+def balance_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
             environment_kwargs=None):
   """Returns the Cartpole Balance task."""
+  # import pdb; pdb.set_trace()
   physics = Physics.from_xml_string(*get_model_and_assets())
   task = Balance(swing_up=False, sparse=False, random=random)
   environment_kwargs = environment_kwargs or {}
@@ -53,7 +54,7 @@ def balance(time_limit=_DEFAULT_TIME_LIMIT, random=None,
 
 
 @SUITE.add('benchmarking')
-def balance_sparse(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+def balance_sparse_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
                    environment_kwargs=None):
   """Returns the sparse reward variant of the Cartpole Balance task."""
   physics = Physics.from_xml_string(*get_model_and_assets())
@@ -64,7 +65,7 @@ def balance_sparse(time_limit=_DEFAULT_TIME_LIMIT, random=None,
 
 
 @SUITE.add('benchmarking')
-def swingup(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+def swingup_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
             environment_kwargs=None):
   """Returns the Cartpole Swing-Up task."""
   physics = Physics.from_xml_string(*get_model_and_assets())
@@ -75,7 +76,7 @@ def swingup(time_limit=_DEFAULT_TIME_LIMIT, random=None,
 
 
 @SUITE.add('benchmarking')
-def swingup_sparse(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+def swingup_sparse_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
                    environment_kwargs=None):
   """Returns the sparse reward variant of teh Cartpole Swing-Up task."""
   physics = Physics.from_xml_string(*get_model_and_assets())
@@ -86,7 +87,7 @@ def swingup_sparse(time_limit=_DEFAULT_TIME_LIMIT, random=None,
 
 
 @SUITE.add()
-def two_poles(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+def two_poles_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
               environment_kwargs=None):
   """Returns the Cartpole Balance task with two poles."""
   physics = Physics.from_xml_string(*get_model_and_assets(num_poles=2))
@@ -97,7 +98,7 @@ def two_poles(time_limit=_DEFAULT_TIME_LIMIT, random=None,
 
 
 @SUITE.add()
-def three_poles(time_limit=_DEFAULT_TIME_LIMIT, random=None, num_poles=3,
+def three_poles_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None, num_poles=3,
                 sparse=False, environment_kwargs=None):
   """Returns the Cartpole Balance task with three or more poles."""
   physics = Physics.from_xml_string(*get_model_and_assets(num_poles=num_poles))
@@ -109,7 +110,7 @@ def three_poles(time_limit=_DEFAULT_TIME_LIMIT, random=None, num_poles=3,
 
 def _make_model(n_poles):
   """Generates an xml string defining a cart with `n_poles` bodies."""
-  xml_string = common.read_model('cartpole.xml')
+  xml_string = common.read_model('cartpole_distractor.xml')
   if n_poles == 1:
     return xml_string
   mjcf = etree.fromstring(xml_string)
@@ -151,15 +152,6 @@ class Physics(mujoco.Physics):
     """Returns the state, with pole angle split into sin/cos."""
     return np.hstack((self.cart_position(),
                       self.named.data.xmat[2:, ['zz', 'xz']].ravel()))
-
-  def reset_from_obs(self, state):
-    # state: cart position and pole angle
-
-    assert len(state) == 2
-    self.named.data.qpos['slider'][0] = state[0]
-    self.named.data.qpos['hinge_1'][0] = state[1]
-    self.step()
-
 
 
 class Balance(base.Task):
@@ -210,6 +202,11 @@ class Balance(base.Task):
 
   def get_observation(self, physics):
     """Returns an observation of the (bounded) physics state."""
+    physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
+    physics.named.data.qpos['dis1y'] = np.random.uniform(-2, 2)
+    physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
+    physics.named.data.qpos['dis2y'] = np.random.uniform(-2, 2)
+
     obs = collections.OrderedDict()
     obs['position'] = physics.bounded_position()
     obs['velocity'] = physics.velocity()

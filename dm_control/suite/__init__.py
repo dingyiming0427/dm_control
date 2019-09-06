@@ -27,9 +27,13 @@ from dm_control.rl import control
 
 from dm_control.suite import acrobot
 from dm_control.suite import ball_in_cup
+from dm_control.suite import ball_in_cup_distractor
 from dm_control.suite import cartpole
+from dm_control.suite import cartpole_distractor
 from dm_control.suite import cheetah
+from dm_control.suite import cheetah_distractor
 from dm_control.suite import finger
+from dm_control.suite import finger_distractor
 from dm_control.suite import fish
 from dm_control.suite import hopper
 from dm_control.suite import humanoid
@@ -40,6 +44,7 @@ from dm_control.suite import pendulum
 from dm_control.suite import point_mass
 from dm_control.suite import quadruped
 from dm_control.suite import reacher
+from dm_control.suite import reacher_distractor
 from dm_control.suite import stacker
 from dm_control.suite import swimmer
 from dm_control.suite import walker

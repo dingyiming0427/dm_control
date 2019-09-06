@@ -41,10 +41,10 @@ SUITE = containers.TaggedTasks()
 
 def get_model_and_assets():
   """Returns a tuple containing the model XML string and a dict of assets."""
-  return common.read_model('cheetah.xml'), common.ASSETS
+  return common.read_model('cheetah_distractor.xml'), common.ASSETS
 
 
-@SUITE.add('benchmarking')
+@SUITE.add()
 def run(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns the run task."""
   physics = Physics.from_xml_string(*get_model_and_assets())
@@ -60,16 +60,6 @@ class Physics(mujoco.Physics):
   def speed(self):
     """Returns the horizontal speed of the Cheetah."""
     return self.named.data.sensordata['torso_subtreelinvel'][0]
-
-  def reset_from_obs(self, observation):
-    self.data.qpos[1:] = observation[:8]
-    self.data.qvel[:] = observation[8:]
-
-
-  def reward(self, obs, ac, nextobs):
-    reward_run = nextobs[:, 8]
-    reward = np.maximum(0., np.minimum(reward_run / 10., 1.)) #+ reward_ctrl
-    return reward
 
 
 class Cheetah(base.Task):
@@ -95,8 +85,16 @@ class Cheetah(base.Task):
     """Returns an observation of the state, ignoring horizontal position."""
     obs = collections.OrderedDict()
     # Ignores horizontal position to maintain translational invariance.
-    obs['position'] = physics.data.qpos[:].copy()
+    obs['position'] = physics.data.qpos[1:].copy()
     obs['velocity'] = physics.velocity()
+
+    cheetah_x = physics.data.qpos[0]
+
+    physics.named.data.qpos['dis1x'] = cheetah_x + np.random.uniform(-2, 2)
+    physics.named.data.qpos['dis1y'] = np.random.uniform(0, 3)
+    physics.named.data.qpos['dis2x'] = cheetah_x + np.random.uniform(-2, 2)
+    physics.named.data.qpos['dis2y'] = np.random.uniform(0, 3)
+
     return obs
 
   def get_reward(self, physics):
