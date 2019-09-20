@@ -96,8 +96,10 @@ class Reacher(base.Task):
     randomizers.randomize_limited_and_rotational_joints(physics, self.random)
 
     # Randomize target position
-    angle = self.random.uniform(0, 2 * np.pi)
-    radius = self.random.uniform(.05, .20)
+    # angle = self.random.uniform(0, 2 * np.pi)
+    # radius = self.random.uniform(.05, .20)
+    angle = 1.75 * np.pi
+    radius = 0.15
     physics.named.model.geom_pos['target', 'x'] = radius * np.sin(angle)
     physics.named.model.geom_pos['target', 'y'] = radius * np.cos(angle)
 
