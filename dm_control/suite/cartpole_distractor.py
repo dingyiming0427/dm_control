@@ -153,6 +153,14 @@ class Physics(mujoco.Physics):
     return np.hstack((self.cart_position(),
                       self.named.data.xmat[2:, ['zz', 'xz']].ravel()))
 
+  def reset_from_obs(self, state):
+    # state: cart position and pole angle
+
+    assert len(state) == 2
+    self.named.data.qpos['slider'][0] = state[0]
+    self.named.data.qpos['hinge_1'][0] = state[1]
+    self.step()
+
 
 class Balance(base.Task):
   """A Cartpole `Task` to balance the pole.
