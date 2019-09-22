@@ -208,12 +208,18 @@ class Balance(base.Task):
     physics.named.data.qvel[:] = 0.01 * self.random.randn(physics.model.nv)
     super(Balance, self).initialize_episode(physics)
 
-  def get_observation(self, physics):
+  def get_observation(self, physics, no_dis=False):
     """Returns an observation of the (bounded) physics state."""
-    physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis1y'] = np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis2y'] = np.random.uniform(-2, 2)
+    if no_dis:
+      physics.named.data.qpos['dis1x'] = 100
+      physics.named.data.qpos['dis1y'] = 0
+      physics.named.data.qpos['dis2x'] = -100
+      physics.named.data.qpos['dis2y'] = 0
+    else:
+      physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis1y'] = np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis2y'] = np.random.uniform(-2, 2)
 
     obs = collections.OrderedDict()
     obs['position'] = physics.bounded_position()
