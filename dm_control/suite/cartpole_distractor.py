@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
+import random
 
 from dm_control import mujoco
 from dm_control.rl import control
@@ -39,6 +40,16 @@ SUITE = containers.TaggedTasks()
 def get_model_and_assets(num_poles=1):
   """Returns a tuple containing the model XML string and a dict of assets."""
   return _make_model(num_poles), common.ASSETS
+
+@SUITE.add('benchmarking')
+def balance_linear_distractor(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+            environment_kwargs=None):
+  """Returns the Cartpole Balance task."""
+  physics = Physics.from_xml_string(*get_model_and_assets())
+  task = Balance(swing_up=False, sparse=False, random=random, distractor_style=1)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(
+      physics, task, time_limit=time_limit, **environment_kwargs)
 
 
 @SUITE.add('benchmarking')
@@ -171,7 +182,7 @@ class Balance(base.Task):
   _CART_RANGE = (-.25, .25)
   _ANGLE_COSINE_RANGE = (.995, 1)
 
-  def __init__(self, swing_up, sparse, random=None):
+  def __init__(self, swing_up, sparse, random=None, distractor_style=0):
     """Initializes an instance of `Balance`.
 
     Args:
@@ -186,7 +197,15 @@ class Balance(base.Task):
     """
     self._sparse = sparse
     self._swing_up = swing_up
+    self._distractor_style = distractor_style
+    self._step_size = 0.015
+    self.sample_new_dir()
     super(Balance, self).__init__(random=random)
+
+  def sample_new_dir(self):
+    dirs = np.random.uniform(-1, 1, size=(2, 2))
+    dirs = dirs / (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-8)
+    self._current_dir = dirs * self._step_size
 
   def initialize_episode(self, physics):
     """Sets the state of the environment at the start of each episode.
@@ -206,6 +225,10 @@ class Balance(base.Task):
       physics.named.data.qpos['slider'] = self.random.uniform(-.1, .1)
       physics.named.data.qpos[1:] = self.random.uniform(-.034, .034, nv - 1)
     physics.named.data.qvel[:] = 0.01 * self.random.randn(physics.model.nv)
+    physics.named.data.qpos['dis1x'] = np.random.uniform(-1, 1)
+    physics.named.data.qpos['dis1y'] = np.random.uniform(-1, 1)
+    physics.named.data.qpos['dis2x'] = np.random.uniform(-1, 1)
+    physics.named.data.qpos['dis2y'] = np.random.uniform(-1, 1)
     super(Balance, self).initialize_episode(physics)
 
   def get_observation(self, physics, no_dis=False):
@@ -216,10 +239,18 @@ class Balance(base.Task):
       physics.named.data.qpos['dis2x'] = -100
       physics.named.data.qpos['dis2y'] = 0
     else:
-      physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
-      physics.named.data.qpos['dis1y'] = np.random.uniform(-2, 2)
-      physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
-      physics.named.data.qpos['dis2y'] = np.random.uniform(-2, 2)
+      if self._distractor_style == 0: # distractor bouncing around
+        physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
+        physics.named.data.qpos['dis1y'] = np.random.uniform(-2, 2)
+        physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
+        physics.named.data.qpos['dis2y'] = np.random.uniform(-2, 2)
+      elif self._distractor_style == 1: # distractor follow a linear function, change direction once in a while
+        if random.random() < 0.05:
+          self.sample_new_dir()
+        physics.named.data.qpos['dis1x'] = np.clip(physics.named.data.qpos['dis1x'] + self._current_dir[0, 0], -2, 2)
+        physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], -2, 2)
+        physics.named.data.qpos['dis2x'] = np.clip(physics.named.data.qpos['dis2x'] + self._current_dir[1, 0], -2, 2)
+        physics.named.data.qpos['dis2y'] = np.clip(physics.named.data.qpos['dis2y'] + self._current_dir[1, 1], -2, 2)
 
     obs = collections.OrderedDict()
     obs['position'] = physics.bounded_position()
