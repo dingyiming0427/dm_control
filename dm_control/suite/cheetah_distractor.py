@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import collections
 import numpy as np
+import random
 
 from dm_control import mujoco
 from dm_control.rl import control
@@ -53,6 +54,15 @@ def run(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   return control.Environment(physics, task, time_limit=time_limit,
                              **environment_kwargs)
 
+@SUITE.add()
+def run_linear(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+  """Returns the run task."""
+  physics = Physics.from_xml_string(*get_model_and_assets())
+  task = Cheetah(random=random, distractor_style=1)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(physics, task, time_limit=time_limit,
+                             **environment_kwargs)
+
 
 class Physics(mujoco.Physics):
   """Physics simulation with additional features for the Cheetah domain."""
@@ -64,6 +74,14 @@ class Physics(mujoco.Physics):
 
 class Cheetah(base.Task):
   """A `Task` to train a running Cheetah."""
+
+  def __init__(self, random=random, distractor_style=0):
+    self._distractor_style = distractor_style
+    self._step_size = 0.03
+    self.sample_new_dir()
+    self.x1 = np.random.uniform(-1, 1)
+    self.x2 = np.random.uniform(-1, 1)
+    super(Cheetah, self).__init__(random=random)
 
   def initialize_episode(self, physics):
     """Sets the state of the environment at the start of each episode."""
@@ -79,7 +97,20 @@ class Cheetah(base.Task):
 
     physics.data.time = 0
     self._timeout_progress = 0
+
+    cheetah_x = physics.data.qpos[0]
+
+    physics.named.data.qpos['dis1x'] = cheetah_x + self.x1
+    physics.named.data.qpos['dis1y'] = np.random.uniform(1, 2)
+    physics.named.data.qpos['dis2x'] = cheetah_x + self.x2
+    physics.named.data.qpos['dis2y'] = np.random.uniform(1, 2)
+
     super(Cheetah, self).initialize_episode(physics)
+
+  def sample_new_dir(self):
+    dirs = np.random.uniform(-1, 1, size=(2, 2))
+    dirs = dirs / (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-8)
+    self._current_dir = dirs * self._step_size
 
   def get_observation(self, physics):
     """Returns an observation of the state, ignoring horizontal position."""
@@ -89,11 +120,20 @@ class Cheetah(base.Task):
     obs['velocity'] = physics.velocity()
 
     cheetah_x = physics.data.qpos[0]
-
-    physics.named.data.qpos['dis1x'] = cheetah_x + np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis1y'] = np.random.uniform(0, 3)
-    physics.named.data.qpos['dis2x'] = cheetah_x + np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis2y'] = np.random.uniform(0, 3)
+    if self._distractor_style == 0:
+      physics.named.data.qpos['dis1x'] = cheetah_x + np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis1y'] = np.random.uniform(0, 3)
+      physics.named.data.qpos['dis2x'] = cheetah_x + np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis2y'] = np.random.uniform(0, 3)
+    elif self._distractor_style == 1:
+      if random.random() < 0.05:
+        self.sample_new_dir()
+      self.x1 = np.clip(self.x1 + self._current_dir[0, 0], -2, 2)
+      self.x2 = np.clip(self.x2 + self._current_dir[1, 0], -2, 2)
+      physics.named.data.qpos['dis1x'] = cheetah_x + self.x1
+      physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], 0, 3)
+      physics.named.data.qpos['dis2x'] = cheetah_x + self.x2
+      physics.named.data.qpos['dis2y'] = np.clip(physics.named.data.qpos['dis2y'] + self._current_dir[1, 1], 0, 3)
 
     return obs
 

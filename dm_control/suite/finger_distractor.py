@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
+import random
 
 from dm_control import mujoco
 from dm_control.rl import control
@@ -56,6 +57,16 @@ def spin(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns the Spin task."""
   physics = Physics.from_xml_string(*get_model_and_assets())
   task = Spin(random=random)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(
+      physics, task, time_limit=time_limit, control_timestep=_CONTROL_TIMESTEP,
+      **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def spin_linear(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+  """Returns the Spin task."""
+  physics = Physics.from_xml_string(*get_model_and_assets())
+  task = Spin(random=random, distractor_style=1)
   environment_kwargs = environment_kwargs or {}
   return control.Environment(
       physics, task, time_limit=time_limit, control_timestep=_CONTROL_TIMESTEP,
@@ -131,7 +142,7 @@ class Physics(mujoco.Physics):
 class Spin(base.Task):
   """A Finger `Task` to spin the stopped body."""
 
-  def __init__(self, random=None):
+  def __init__(self, random=None, distractor_style=0):
     """Initializes a new `Spin` instance.
 
     Args:
@@ -139,6 +150,9 @@ class Spin(base.Task):
         integer seed for creating a new `RandomState`, or None to select a seed
         automatically (default).
     """
+    self._distractor_style = distractor_style
+    self._step_size = 0.015
+    self.sample_new_dir()
     super(Spin, self).__init__(random=random)
 
   def initialize_episode(self, physics):
@@ -146,7 +160,20 @@ class Spin(base.Task):
     physics.named.model.site_rgba['tip', 3] = 0
     physics.named.model.dof_damping['hinge'] = .03
     _set_random_joint_angles(physics, self.random)
+
+    physics.named.data.qpos['dis1x'] = np.random.uniform(-1, 1)
+    physics.named.data.qpos['dis1y'] = np.random.uniform(1.75, 2.25)
+    physics.named.data.qpos['dis1z'] = -2.
+    physics.named.data.qpos['dis2x'] = np.random.uniform(-1, 1)
+    physics.named.data.qpos['dis2y'] = np.random.uniform(1.75, 2.25)
+    physics.named.data.qpos['dis2z'] = -3.
+
     super(Spin, self).initialize_episode(physics)
+
+  def sample_new_dir(self):
+    dirs = np.random.uniform(-1, 1, size=(2, 2))
+    dirs = dirs / (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-8)
+    self._current_dir = dirs * self._step_size
 
   def get_observation(self, physics):
     """Returns state and touch sensors, and target info."""
@@ -155,12 +182,22 @@ class Spin(base.Task):
     obs['velocity'] = physics.velocity()
     obs['touch'] = physics.touch()
 
-    physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis1y'] = np.random.uniform(1.5, 2.5)
-    physics.named.data.qpos['dis1z'] = -2.
-    physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
-    physics.named.data.qpos['dis2y'] = np.random.uniform(1.5, 2.5)
-    physics.named.data.qpos['dis2z'] = -3.
+    if self._distractor_style == 0:
+      physics.named.data.qpos['dis1x'] = np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis1y'] = np.random.uniform(1.5, 2.5)
+      physics.named.data.qpos['dis1z'] = -2.
+      physics.named.data.qpos['dis2x'] = np.random.uniform(-2, 2)
+      physics.named.data.qpos['dis2y'] = np.random.uniform(1.5, 2.5)
+      physics.named.data.qpos['dis2z'] = -3.
+    elif self._distractor_style == 1:
+      if random.random() < 0.05:
+        self.sample_new_dir()
+      physics.named.data.qpos['dis1x'] = np.clip(physics.named.data.qpos['dis1x'] + self._current_dir[0, 0], -2, 2)
+      physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], 1.5, 2.5)
+      physics.named.data.qpos['dis1z'] = -2.
+      physics.named.data.qpos['dis2x'] = np.clip(physics.named.data.qpos['dis2x'] + self._current_dir[1, 0], -2, 2)
+      physics.named.data.qpos['dis2y'] = np.clip(physics.named.data.qpos['dis2y'] + self._current_dir[1, 1], 1.5, 2.5)
+      physics.named.data.qpos['dis2z'] = -3.
     return obs
 
   def get_reward(self, physics):
