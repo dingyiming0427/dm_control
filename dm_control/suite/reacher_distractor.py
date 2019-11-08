@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
+import random
 
 from dm_control import mujoco
 from dm_control.rl import control
@@ -46,6 +47,15 @@ def easy(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns reacher with sparse reward with 5e-2 tol and randomized target."""
   physics = Physics.from_xml_string(*get_model_and_assets())
   task = Reacher(target_size=_BIG_TARGET, random=random)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(
+      physics, task, time_limit=time_limit, **environment_kwargs)
+
+@SUITE.add('benchmarking', 'easy_linear')
+def easy_linear(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+  """Returns reacher with sparse reward with 5e-2 tol and randomized target."""
+  physics = Physics.from_xml_string(*get_model_and_assets())
+  task = Reacher(target_size=_BIG_TARGET, random=random, distractor_style=1)
   environment_kwargs = environment_kwargs or {}
   return control.Environment(
       physics, task, time_limit=time_limit, **environment_kwargs)
@@ -77,7 +87,7 @@ class Physics(mujoco.Physics):
 class Reacher(base.Task):
   """A reacher `Task` to reach the target."""
 
-  def __init__(self, target_size, random=None):
+  def __init__(self, target_size, random=None, distractor_style=0):
     """Initialize an instance of `Reacher`.
 
     Args:
@@ -88,7 +98,15 @@ class Reacher(base.Task):
         automatically (default).
     """
     self._target_size = target_size
+    self._distractor_style = distractor_style
+    self._step_size = 0.0015
+    self.sample_new_dir()
     super(Reacher, self).__init__(random=random)
+
+  def sample_new_dir(self):
+    dirs = np.random.uniform(-1, 1, size=(2, 2))
+    dirs = dirs / (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-8)
+    self._current_dir = dirs * self._step_size
 
   def initialize_episode(self, physics):
     """Sets the state of the environment at the start of each episode."""
@@ -103,6 +121,12 @@ class Reacher(base.Task):
     physics.named.model.geom_pos['target', 'x'] = radius * np.sin(angle)
     physics.named.model.geom_pos['target', 'y'] = radius * np.cos(angle)
 
+    bdry = 0.1
+    physics.named.data.qpos['dis1x'] = np.random.uniform(-bdry, bdry)
+    physics.named.data.qpos['dis1y'] = np.random.uniform(-bdry, bdry)
+    physics.named.data.qpos['dis2x'] = np.random.uniform(-bdry, bdry)
+    physics.named.data.qpos['dis2y'] = np.random.uniform(-bdry, bdry)
+
     super(Reacher, self).initialize_episode(physics)
 
   def get_observation(self, physics):
@@ -113,11 +137,19 @@ class Reacher(base.Task):
     obs['velocity'] = physics.velocity()
 
     bdry = 0.2
+    if self._distractor_style == 0:
+      physics.named.data.qpos['dis1x'] = np.random.uniform(-bdry, bdry)
+      physics.named.data.qpos['dis1y'] = np.random.uniform(-bdry, bdry)
+      physics.named.data.qpos['dis2x'] = np.random.uniform(-bdry, bdry)
+      physics.named.data.qpos['dis2y'] = np.random.uniform(-bdry, bdry)
 
-    physics.named.data.qpos['dis1x'] = np.random.uniform(-bdry, bdry)
-    physics.named.data.qpos['dis1y'] = np.random.uniform(-bdry, bdry)
-    physics.named.data.qpos['dis2x'] = np.random.uniform(-bdry, bdry)
-    physics.named.data.qpos['dis2y'] = np.random.uniform(-bdry, bdry)
+    if self._distractor_style == 1:
+      if random.random() < 0.05:
+        self.sample_new_dir()
+      physics.named.data.qpos['dis1x'] = np.clip(physics.named.data.qpos['dis1x'] + self._current_dir[0, 0], -bdry, bdry)
+      physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], -bdry, bdry)
+      physics.named.data.qpos['dis2x'] = np.clip(physics.named.data.qpos['dis2x'] + self._current_dir[1, 0], -bdry, bdry)
+      physics.named.data.qpos['dis2y'] = np.clip(physics.named.data.qpos['dis2y'] + self._current_dir[1, 1], -bdry, bdry)
 
 
     return obs
