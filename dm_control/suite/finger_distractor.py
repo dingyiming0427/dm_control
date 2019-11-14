@@ -151,7 +151,7 @@ class Spin(base.Task):
         automatically (default).
     """
     self._distractor_style = distractor_style
-    self._step_size = 0.015
+    self._step_size = 0.5
     self.sample_new_dir()
     super(Spin, self).__init__(random=random)
 
@@ -190,12 +190,12 @@ class Spin(base.Task):
       physics.named.data.qpos['dis2y'] = np.random.uniform(1.5, 2.5)
       physics.named.data.qpos['dis2z'] = -3.
     elif self._distractor_style == 1:
-      if random.random() < 0.05:
+      if random.random() < 0.3:
         self.sample_new_dir()
-      physics.named.data.qpos['dis1x'] = np.clip(physics.named.data.qpos['dis1x'] + self._current_dir[0, 0], -2, 2)
+      physics.named.data.qpos['dis1x'] = np.clip(physics.named.data.qpos['dis1x'] + self._current_dir[0, 0], -1.5, 1.5)
       physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], 1.5, 2.5)
       physics.named.data.qpos['dis1z'] = -2.
-      physics.named.data.qpos['dis2x'] = np.clip(physics.named.data.qpos['dis2x'] + self._current_dir[1, 0], -2, 2)
+      physics.named.data.qpos['dis2x'] = np.clip(physics.named.data.qpos['dis2x'] + self._current_dir[1, 0], -1.5, 1.5)
       physics.named.data.qpos['dis2y'] = np.clip(physics.named.data.qpos['dis2y'] + self._current_dir[1, 1], 1.5, 2.5)
       physics.named.data.qpos['dis2z'] = -3.
     return obs

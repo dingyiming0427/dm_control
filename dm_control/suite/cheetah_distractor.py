@@ -77,7 +77,7 @@ class Cheetah(base.Task):
 
   def __init__(self, random=random, distractor_style=0):
     self._distractor_style = distractor_style
-    self._step_size = 0.03
+    self._step_size = 0.5
     self.sample_new_dir()
     self.x1 = np.random.uniform(-1, 1)
     self.x2 = np.random.uniform(-1, 1)
@@ -126,10 +126,10 @@ class Cheetah(base.Task):
       physics.named.data.qpos['dis2x'] = cheetah_x + np.random.uniform(-2, 2)
       physics.named.data.qpos['dis2y'] = np.random.uniform(0, 3)
     elif self._distractor_style == 1:
-      if random.random() < 0.05:
+      if random.random() < 0.15:
         self.sample_new_dir()
-      self.x1 = np.clip(self.x1 + self._current_dir[0, 0], -2, 2)
-      self.x2 = np.clip(self.x2 + self._current_dir[1, 0], -2, 2)
+      self.x1 = np.clip(self.x1 + self._current_dir[0, 0], -3, 3)
+      self.x2 = np.clip(self.x2 + self._current_dir[1, 0], -3, 3)
       physics.named.data.qpos['dis1x'] = cheetah_x + self.x1
       physics.named.data.qpos['dis1y'] = np.clip(physics.named.data.qpos['dis1y'] + self._current_dir[0, 1], 0, 3)
       physics.named.data.qpos['dis2x'] = cheetah_x + self.x2
